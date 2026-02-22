@@ -62,7 +62,7 @@ log.info("Logging initialised at level %s", _LOG_LEVEL)
 # ---------------------------------------------------------------------------
 
 # Set to True by vercel.json env → switches to in-memory store & /tmp paths.
-_VERCEL = bool(os.getenv("VERCEL"))
+_VERCEL = os.getenv("VERCEL") not in (None, "", "0")
 _mem_store: list[dict] = []   # ephemeral history (used only when _VERCEL=True)
 
 # ---------------------------------------------------------------------------
