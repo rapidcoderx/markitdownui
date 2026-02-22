@@ -40,3 +40,6 @@ Thumbs.db
 .env.local
 .env.*.local
 .vercel
+
+# Personal / social posts (not part of the codebase)
+LINKEDIN_POST.md

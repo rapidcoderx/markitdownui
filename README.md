@@ -2,6 +2,8 @@
 
 A modern web UI and CLI tool for converting any document to **Markdown** using Microsoft's [MarkItDown](https://github.com/microsoft/markitdown) library.
 
+![MarkItDown UI screenshot](app.png)
+
 ## Features
 
 - **Drag & drop upload** – single or bulk, with live progress
