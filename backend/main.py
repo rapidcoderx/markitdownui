@@ -11,7 +11,7 @@ import os
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import date as _date, datetime, timezone
 from pathlib import Path
 from typing import Any, List
 from urllib.parse import urlparse
@@ -64,6 +64,18 @@ log.info("Logging initialised at level %s", _LOG_LEVEL)
 # Set to True by vercel.json env → switches to in-memory store & /tmp paths.
 _VERCEL = os.getenv("VERCEL") not in (None, "", "0")
 _mem_store: list[dict] = []   # ephemeral history (used only when _VERCEL=True)
+
+# ---------------------------------------------------------------------------
+# LLM rate limiting
+# ---------------------------------------------------------------------------
+
+LLM_DAILY_LIMIT   = int(os.getenv("LLM_DAILY_LIMIT",   "100"))
+LLM_SESSION_LIMIT = int(os.getenv("LLM_SESSION_LIMIT", "5"))
+
+# Module-level daily counter – resets when the date changes.
+# On Vercel each warm instance tracks its own counter; this is intentionally
+# approximate (serverless instances don't share state).
+_llm_daily: dict = {"date": None, "count": 0}
 
 # ---------------------------------------------------------------------------
 # Directories & persistence
@@ -411,7 +423,7 @@ else:
 # ---------------------------------------------------------------------------
 
 
-def _convert_file(upload_path: Path, original_name: str) -> dict:
+def _convert_file(upload_path: Path, original_name: str, session_count: int = 0) -> dict:
     """Run MarkItDown conversion and persist the result."""
     record_id = str(uuid.uuid4())
     out_name = f"{record_id}.md"
@@ -424,6 +436,29 @@ def _convert_file(upload_path: Path, original_name: str) -> dict:
     use_vision = is_image and md_converter_vision is not None
     converter = md_converter_vision if use_vision else md_converter
     converter_label = f"{_vision_provider} vision" if use_vision else "MarkItDown"
+
+    # Enforce LLM rate limits before consuming any quota
+    if use_vision:
+        if session_count >= LLM_SESSION_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Session LLM limit of {LLM_SESSION_LIMIT} calls reached. "
+                       "Open a new browser tab to continue.",
+            )
+        today = str(_date.today())
+        if _llm_daily["date"] != today:
+            _llm_daily["date"] = today
+            _llm_daily["count"] = 0
+        if _llm_daily["count"] >= LLM_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily LLM limit of {LLM_DAILY_LIMIT} calls reached. "
+                       "Try again tomorrow.",
+            )
+        _llm_daily["count"] += 1
+        log.info("LLM rate: session=%d/%d daily=%d/%d",
+                 session_count + 1, LLM_SESSION_LIMIT,
+                 _llm_daily["count"], LLM_DAILY_LIMIT)
 
     # Reset adapter token counter before each call
     if use_vision and hasattr(_adapter, "last_usage"):
@@ -508,7 +543,7 @@ def _convert_file(upload_path: Path, original_name: str) -> dict:
     return record
 
 
-def _convert_url(url: str) -> dict:
+def _convert_url(url: str, session_count: int = 0) -> dict:
     """Convert a URL to Markdown and persist the result."""
     record_id = str(uuid.uuid4())
     out_name = f"{record_id}.md"
@@ -613,8 +648,9 @@ async def config():
 
 
 @app.post("/api/convert", response_model=ConversionRecord, status_code=status.HTTP_201_CREATED)
-async def convert_single(file: UploadFile = File(...)):
+async def convert_single(request: Request, file: UploadFile = File(...)):
     """Convert a single uploaded file to Markdown."""
+    session_count = int(request.headers.get("X-LLM-Session-Count", "0"))
     suffix = Path(file.filename or "").suffix.lower()
     log.debug("Single-convert request: '%s' (suffix=%s)", file.filename, suffix)
     if suffix not in ALLOWED_EXTENSIONS:
@@ -638,13 +674,14 @@ async def convert_single(file: UploadFile = File(...)):
             await out.write(chunk)
     log.debug("Uploaded to tmp: %s (%d bytes)", tmp_path, total)
 
-    record = _convert_file(tmp_path, file.filename or "unknown")
+    record = _convert_file(tmp_path, file.filename or "unknown", session_count=session_count)
     return record
 
 
 @app.post("/api/convert/bulk", status_code=status.HTTP_201_CREATED)
-async def convert_bulk(files: List[UploadFile] = File(...)):
+async def convert_bulk(request: Request, files: List[UploadFile] = File(...)):
     """Convert multiple uploaded files to Markdown."""
+    session_count = int(request.headers.get("X-LLM-Session-Count", "0"))
     log.info("Bulk-convert request: %d file(s)", len(files))
     results = []
     for file in files:
@@ -691,15 +728,18 @@ async def convert_bulk(files: List[UploadFile] = File(...)):
             )
             continue
 
-        record = _convert_file(tmp_path, file.filename or "unknown")
+        record = _convert_file(tmp_path, file.filename or "unknown", session_count=session_count)
+        if isinstance(record, dict) and record.get("llm_tokens"):
+            session_count += 1  # track within this bulk request
         results.append(record)
 
     return {"results": results, "total": len(results)}
 
 
 @app.post("/api/convert/url", response_model=ConversionRecord, status_code=status.HTTP_201_CREATED)
-async def convert_url(body: UrlConvertRequest):
+async def convert_url(request: Request, body: UrlConvertRequest):
     """Convert a URL to Markdown (e.g. https://example.com/page)."""
+    session_count = int(request.headers.get("X-LLM-Session-Count", "0"))
     if not (body.url and body.url.strip()):
         raise HTTPException(status_code=400, detail="URL is required")
     if len(body.url) > 4096:
@@ -707,7 +747,7 @@ async def convert_url(body: UrlConvertRequest):
     parsed = urlparse(body.url.strip())
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise HTTPException(status_code=400, detail="Invalid URL: must start with http:// or https://")
-    record = _convert_url(body.url.strip())
+    record = _convert_url(body.url.strip(), session_count=session_count)
     return record
 
 
