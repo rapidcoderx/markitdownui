@@ -182,6 +182,7 @@ class ConversionRecord(BaseModel):
     created_at: str
     markdown_preview: str | None = None  # first 500 chars
     llm_tokens: dict | None = None       # {input_tokens, output_tokens, total_tokens}
+    notice: str | None = None            # informational message (e.g. rate-limit fallback)
 
 
 class UrlConvertRequest(BaseModel):
@@ -437,28 +438,35 @@ def _convert_file(upload_path: Path, original_name: str, session_count: int = 0)
     converter = md_converter_vision if use_vision else md_converter
     converter_label = f"{_vision_provider} vision" if use_vision else "MarkItDown"
 
-    # Enforce LLM rate limits before consuming any quota
+    # Enforce LLM rate limits — fall back to plain MarkItDown instead of erroring
+    llm_notice: str | None = None
     if use_vision:
-        if session_count >= LLM_SESSION_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Session LLM limit of {LLM_SESSION_LIMIT} calls reached. "
-                       "Open a new browser tab to continue.",
-            )
         today = str(_date.today())
         if _llm_daily["date"] != today:
             _llm_daily["date"] = today
             _llm_daily["count"] = 0
-        if _llm_daily["count"] >= LLM_DAILY_LIMIT:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily LLM limit of {LLM_DAILY_LIMIT} calls reached. "
-                       "Try again tomorrow.",
+
+        if session_count >= LLM_SESSION_LIMIT:
+            llm_notice = (
+                f"Session LLM limit ({LLM_SESSION_LIMIT} calls) reached — "
+                "converted without vision. Open a new browser tab to use LLM again."
             )
-        _llm_daily["count"] += 1
-        log.info("LLM rate: session=%d/%d daily=%d/%d",
-                 session_count + 1, LLM_SESSION_LIMIT,
-                 _llm_daily["count"], LLM_DAILY_LIMIT)
+        elif _llm_daily["count"] >= LLM_DAILY_LIMIT:
+            llm_notice = (
+                f"Daily LLM limit ({LLM_DAILY_LIMIT} calls) reached — "
+                "converted without vision. Try again tomorrow."
+            )
+        else:
+            _llm_daily["count"] += 1
+            log.info("LLM rate: session=%d/%d daily=%d/%d",
+                     session_count + 1, LLM_SESSION_LIMIT,
+                     _llm_daily["count"], LLM_DAILY_LIMIT)
+
+        if llm_notice:
+            log.warning("LLM rate limit hit — falling back to plain MarkItDown: %s", llm_notice)
+            use_vision = False
+            converter = md_converter
+            converter_label = "MarkItDown (LLM limit reached)"
 
     # Reset adapter token counter before each call
     if use_vision and hasattr(_adapter, "last_usage"):
@@ -509,6 +517,7 @@ def _convert_file(upload_path: Path, original_name: str, session_count: int = 0)
             "created_at": datetime.now(timezone.utc).isoformat(),
             "markdown_preview": markdown_content[:500] if markdown_content else "",
             "llm_tokens": llm_tokens,
+            "notice": llm_notice,
         }
     except Exception as exc:  # noqa: BLE001
         elapsed = time.monotonic() - t0
@@ -526,6 +535,7 @@ def _convert_file(upload_path: Path, original_name: str, session_count: int = 0)
             "created_at": datetime.now(timezone.utc).isoformat(),
             "markdown_preview": None,
             "llm_tokens": None,
+            "notice": llm_notice,
         }
     finally:
         # Remove the temporary upload

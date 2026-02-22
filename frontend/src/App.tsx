@@ -52,6 +52,15 @@ export default function App() {
       title: `${newRecords.length} file${newRecords.length !== 1 ? 's' : ''} converted`,
       description: 'Click any row to preview the Markdown output.',
     })
+    // Surface any LLM rate-limit fallback notices
+    const notice = newRecords.find((r) => r.notice)?.notice
+    if (notice) {
+      toast({
+        variant: 'destructive',
+        title: 'LLM limit reached',
+        description: notice,
+      })
+    }
   }
 
   const handleView = (id: string, filename: string) => {

@@ -144,6 +144,17 @@ In the Vercel dashboard go to **Project → Settings → Environment Variables**
 
 > Only one key is needed. Anthropic takes priority if both are set.
 
+### LLM rate limits
+
+To cap API costs, vision calls are rate-limited out of the box:
+
+| Limit | Default | Env var to override |
+|-------|---------|---------------------|
+| Per browser session | 5 calls | `LLM_SESSION_LIMIT` |
+| Per day (all users) | 100 calls | `LLM_DAILY_LIMIT` |
+
+When a limit is reached the upload still succeeds — the file is converted without vision and a notice banner appears in the UI. You can raise or remove the limits by setting the env vars in the Vercel dashboard.
+
 ---
 
 ## Supported File Formats

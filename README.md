@@ -207,8 +207,19 @@ vercel
 vercel deploy --prod
 ```
 
-> **Note:** Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the Vercel dashboard  
+> **Note:** Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the Vercel dashboard
 > (*Project → Settings → Environment Variables*) to enable vision conversion for images.
+
+#### LLM rate limits
+
+To protect against runaway API costs, LLM (vision) calls are limited:
+
+| Limit | Default | Override |
+|-------|---------|----------|
+| Per browser session | 5 calls | `LLM_SESSION_LIMIT` env var |
+| Per day (server-wide) | 100 calls | `LLM_DAILY_LIMIT` env var |
+
+When a limit is hit the file is still converted — plain MarkItDown runs without vision and a notice is shown in the UI. No error is returned.
 
 ---
 

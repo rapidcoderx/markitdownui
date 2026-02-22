@@ -39,7 +39,9 @@ Each entry lists the exact files to touch, implementation steps, and how to veri
 | Search/filter history | `ConversionHistory.tsx` — client-side filter by filename |
 | Mini stats strip | `StatsStrip.tsx` + `App.tsx` — files converted, MB processed, tokens (session) |
 | Calendar filter by date | `ConversionHistory.tsx` — calendar picker with bubbles on dates that have conversions; click a date to filter |
-| Vercel deployment | `api/index.py`, `vercel.json`, root `requirements.txt`, `_VERCEL` flag + in-memory store in `backend/main.py` |
+| Vercel deployment | `api/index.py`, `vercel.json`, `_VERCEL` flag + in-memory store in `backend/main.py` |
+| LLM rate limiting (session + daily) | `_llm_daily` counter + `LLM_SESSION_LIMIT`/`LLM_DAILY_LIMIT` in `main.py`; graceful fallback to plain MarkItDown with UI notice |
+| Vercel Analytics | `@vercel/analytics/react` `<Analytics />` in `main.tsx` |
 
 ---
 

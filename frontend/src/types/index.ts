@@ -12,6 +12,7 @@ export interface ConversionRecord {
     output_tokens: number
     total_tokens: number
   } | null
+  notice?: string | null
 }
 
 export interface ConversionRecordDetail extends ConversionRecord {
