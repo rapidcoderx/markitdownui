@@ -89,6 +89,7 @@ python markitdownui.py --help
 | Method | URL | Description |
 |--------|-----|-------------|
 | GET | `/api/health` | Health check |
+| GET | `/api/config` | Feature flags (vision, vercel mode) |
 | POST | `/api/convert` | Convert single file |
 | POST | `/api/convert/bulk` | Convert many files |
 | POST | `/api/convert/url` | Convert URL to Markdown |
@@ -97,6 +98,51 @@ python markitdownui.py --help
 | GET | `/api/download/{id}` | Download `.md` file |
 | DELETE | `/api/history/{id}` | Delete one record |
 | DELETE | `/api/history` | Clear all history |
+
+---
+
+## Option D – Deploy to Vercel (zero-ops hosting)
+
+Frontend is served as a static build; backend runs as a serverless Python function.
+History is **ephemeral per invocation** (in-memory) — no database needed.
+
+### Prerequisites
+
+```bash
+npm install -g vercel
+```
+
+### Simulate Vercel locally
+
+```bash
+# Backend in Vercel mode (in-memory store, /tmp paths)
+VERCEL=1 backend/.venv/bin/uvicorn main:app --app-dir backend --port 8000
+
+# Or full Vercel local dev (proxies frontend + backend together)
+vercel dev
+```
+
+### Deploy
+
+```bash
+# First deployment — Vercel will ask for project name / link
+vercel
+
+# Push to production
+vercel deploy --prod
+```
+
+### Optional: enable LLM vision for images
+
+In the Vercel dashboard go to **Project → Settings → Environment Variables** and add:
+
+| Name | Value |
+|------|-------|
+| `ANTHROPIC_API_KEY` | your Anthropic key |
+| `CLAUDE_MODEL` | `claude-haiku-4-5-20251001` (default) |
+| `OPENAI_API_KEY` | your OpenAI key (alternative) |
+
+> Only one key is needed. Anthropic takes priority if both are set.
 
 ---
 

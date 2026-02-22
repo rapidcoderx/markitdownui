@@ -68,12 +68,30 @@
 
 ---
 
-## Next Session – Vercel Deployment
+### February 21, 2026 – Vercel Deployment (1.3)
 
-**Goal:** Enable Vercel deployment so the app can be deployed with `vercel deploy`.
+**Goal:** Enable `vercel deploy` with frontend as static build and backend as Python serverless function.
 
-**Instructions for the next session:**
-1. Read **FEATURES.md** section **1.3 Vercel Deployment** first — it has the full spec: files to create (`api/index.py`, `vercel.json`, root `requirements.txt`), and required changes in `backend/main.py` (in-memory store when `VERCEL=1`, `/tmp` output path, `_VERCEL` flag and branches in all db helpers).
-2. Implement the Vercel deployment flow: frontend as static build, backend as Python serverless; history in-memory per invocation (ephemeral, no DB).
-3. Verify with `VERCEL=1 uvicorn …` locally and document `vercel dev` / `vercel deploy --prod` in README or QUICKSTART if needed.
-4. Do **not** implement SQLite (1.1) or Docker (1.2) in that session unless the user asks — focus only on Vercel (1.3).
+**Actions taken:**
+- Checked out new `vercel` git branch
+- Created `api/index.py` — Vercel entry point that re-exports `app` from `backend/main.py`
+- Created `vercel.json` — build config (`frontend/dist`), `/api/*` rewrite → `api/index.py`, `python3.12` runtime, 60 s max duration
+- Created root `requirements.txt` — `-r backend/requirements.txt` for Vercel's Python builder
+- Patched `backend/main.py`:
+  - Added `_VERCEL = bool(os.getenv("VERCEL"))` flag and `_mem_store: list[dict]`
+  - `UPLOAD_DIR` / `OUTPUT_DIR` now resolve to `/tmp/markitdownui/…` when `_VERCEL=True`
+  - `_load_db` / `_save_db` have in-memory branches so history is per-invocation (ephemeral)
+  - CORS widened to `["*"]` (with `allow_credentials=False`) on Vercel
+  - `/api/config` now exposes `"vercel": true` flag
+- Updated `FEATURES.md` — 1.3 marked ✅
+- Updated `README.md` and `QUICKSTART.md` with Vercel deploy instructions
+
+---
+
+## Next Session
+
+Possible next steps (see FEATURES.md for full backlog):
+- **1.1 SQLite persistence** — replace `db.json` with `aiosqlite` for durable local history
+- **1.2 Docker** — `docker compose up --build` for production stack (Nginx + FastAPI)
+- **3.1 Custom LLM prompt** — per-conversion AI instruction textarea in DropZone
+- **3.2 Bulk ZIP export** — multi-select + download selected as ZIP
