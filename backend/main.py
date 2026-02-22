@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List
+from urllib.parse import urlparse
 
 import aiofiles
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
@@ -73,6 +74,18 @@ log.debug("UPLOAD_DIR : %s", UPLOAD_DIR)
 log.debug("OUTPUT_DIR : %s", OUTPUT_DIR)
 log.debug("DB_FILE    : %s", DB_FILE)
 
+# ---------------------------------------------------------------------------
+# Upload size limits
+# ---------------------------------------------------------------------------
+
+_MAX_UPLOAD_MB_HARD_CAP = 50
+_MAX_UPLOAD_MB = min(
+    int(os.getenv("MAX_UPLOAD_MB", "20")),
+    _MAX_UPLOAD_MB_HARD_CAP,
+)
+MAX_UPLOAD_BYTES = _MAX_UPLOAD_MB * 1024 * 1024
+log.info("Max upload size: %d MB (%d bytes)", _MAX_UPLOAD_MB, MAX_UPLOAD_BYTES)
+
 # Supported MIME types / extensions (MarkItDown handles the heavy lifting)
 ALLOWED_EXTENSIONS = {
     ".pdf", ".docx", ".doc", ".pptx", ".ppt",
@@ -89,6 +102,14 @@ ALLOWED_EXTENSIONS = {
 # ---------------------------------------------------------------------------
 # Persistence helpers
 # ---------------------------------------------------------------------------
+
+
+def _safe_output_path(filename: str) -> Path:
+    """Resolve an output filename and ensure it stays inside OUTPUT_DIR."""
+    resolved = (OUTPUT_DIR / filename).resolve()
+    if not resolved.is_relative_to(OUTPUT_DIR.resolve()):
+        raise HTTPException(status_code=400, detail="Invalid output filename")
+    return resolved
 
 
 def _load_db() -> List[dict]:
@@ -134,12 +155,20 @@ class UrlConvertRequest(BaseModel):
 
 app = FastAPI(title="MarkItDown UI API", version="1.0.0")
 
+_CORS_ORIGINS_DEFAULT = "http://localhost:5173,http://127.0.0.1:5173"
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", _CORS_ORIGINS_DEFAULT).split(",")
+    if o.strip()
+]
+log.info("CORS allowed origins: %s", _cors_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type", "Accept"],
 )
 
 md_converter = MarkItDown()
@@ -563,10 +592,18 @@ async def convert_single(file: UploadFile = File(...)):
         )
 
     tmp_path = UPLOAD_DIR / f"{uuid.uuid4()}{suffix}"
+    total = 0
     async with aiofiles.open(tmp_path, "wb") as out:
         while chunk := await file.read(1024 * 1024):  # 1 MB chunks
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                tmp_path.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large (max {_MAX_UPLOAD_MB} MB)",
+                )
             await out.write(chunk)
-    log.debug("Uploaded to tmp: %s", tmp_path)
+    log.debug("Uploaded to tmp: %s (%d bytes)", tmp_path, total)
 
     record = _convert_file(tmp_path, file.filename or "unknown")
     return record
@@ -595,9 +632,31 @@ async def convert_bulk(files: List[UploadFile] = File(...)):
             continue
 
         tmp_path = UPLOAD_DIR / f"{uuid.uuid4()}{suffix}"
+        total = 0
+        too_large = False
         async with aiofiles.open(tmp_path, "wb") as out:
             while chunk := await file.read(1024 * 1024):
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    too_large = True
+                    break
                 await out.write(chunk)
+
+        if too_large:
+            tmp_path.unlink(missing_ok=True)
+            results.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "original_filename": file.filename,
+                    "output_filename": None,
+                    "file_size": 0,
+                    "status": "error",
+                    "error_message": f"File too large (max {_MAX_UPLOAD_MB} MB)",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "markdown_preview": None,
+                }
+            )
+            continue
 
         record = _convert_file(tmp_path, file.filename or "unknown")
         results.append(record)
@@ -612,6 +671,9 @@ async def convert_url(body: UrlConvertRequest):
         raise HTTPException(status_code=400, detail="URL is required")
     if len(body.url) > 4096:
         raise HTTPException(status_code=400, detail="URL too long")
+    parsed = urlparse(body.url.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise HTTPException(status_code=400, detail="Invalid URL: must start with http:// or https://")
     record = _convert_url(body.url.strip())
     return record
 
@@ -632,7 +694,7 @@ async def get_record(record_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    out_path = OUTPUT_DIR / record["output_filename"]
+    out_path = _safe_output_path(record["output_filename"])
     full_markdown = ""
     if out_path.exists():
         with open(out_path, "r", encoding="utf-8") as f:
@@ -649,7 +711,7 @@ async def download(record_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="Record not found")
 
-    out_path = OUTPUT_DIR / record["output_filename"]
+    out_path = _safe_output_path(record["output_filename"])
     if not out_path.exists():
         raise HTTPException(status_code=404, detail="Output file not found")
 
@@ -670,7 +732,7 @@ async def delete_record(record_id: str):
         log.warning("Delete requested for unknown record_id=%s", record_id)
         raise HTTPException(status_code=404, detail="Record not found")
 
-    out_path = OUTPUT_DIR / record["output_filename"]
+    out_path = _safe_output_path(record["output_filename"])
     out_path.unlink(missing_ok=True)
     log.info("Deleted record %s ('%s')", record_id[:8], record.get("original_filename"))
 
@@ -683,7 +745,10 @@ async def clear_history():
     records = _load_db()
     log.info("Clearing all history: %d record(s)", len(records))
     for record in records:
-        out_path = OUTPUT_DIR / record["output_filename"]
-        out_path.unlink(missing_ok=True)
+        try:
+            out_path = _safe_output_path(record["output_filename"])
+            out_path.unlink(missing_ok=True)
+        except HTTPException:
+            log.warning("Skipping invalid output_filename during clear: %s", record.get("output_filename"))
     _save_db([])
     log.info("History cleared")

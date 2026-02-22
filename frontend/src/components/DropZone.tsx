@@ -9,6 +9,12 @@ import { cn, formatBytes, getFileIcon } from '@/lib/utils'
 import { convertFiles, convertUrl } from '@/lib/api'
 import type { ConversionRecord, UploadFile } from '@/types'
 
+const PROGRESS_INTERVAL_MS = 400
+const PROGRESS_INCREMENT = 20
+const PROGRESS_MAX_BEFORE_DONE = 85
+const SUCCESS_CLEAR_DELAY_MS = 1500
+const ERROR_CLEAR_DELAY_MS = 2500
+
 const ACCEPTED_EXTENSIONS = [
   '.pdf', '.docx', '.doc', '.pptx', '.ppt',
   '.xlsx', '.xls', '.csv',
@@ -73,10 +79,10 @@ export function DropZone({ onConverted }: DropZoneProps) {
       const progressTimer = setInterval(() => {
         setFiles((prev) =>
           prev.map((f) =>
-            f.status === 'uploading' ? { ...f, progress: Math.min(f.progress + 20, 85) } : f
+            f.status === 'uploading' ? { ...f, progress: Math.min(f.progress + PROGRESS_INCREMENT, PROGRESS_MAX_BEFORE_DONE) } : f
           )
         )
-      }, 400)
+      }, PROGRESS_INTERVAL_MS)
 
       const response = await convertFiles(rawFiles)
       clearInterval(progressTimer)
@@ -104,7 +110,7 @@ export function DropZone({ onConverted }: DropZoneProps) {
       if (successRecords.length > 0) onConverted(successRecords)
 
       // Clear queue after a short pause so users can see the result badges
-      setTimeout(() => setFiles([]), 1500)
+      setTimeout(() => setFiles([]), SUCCESS_CLEAR_DELAY_MS)
     } catch (err) {
       setFiles((prev) =>
         prev.map((f) => ({
@@ -114,7 +120,7 @@ export function DropZone({ onConverted }: DropZoneProps) {
           error: (err as Error).message,
         }))
       )
-      setTimeout(() => setFiles([]), 2500)
+      setTimeout(() => setFiles([]), ERROR_CLEAR_DELAY_MS)
     } finally {
       setIsConverting(false)
     }

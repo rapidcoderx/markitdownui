@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getRecord, downloadFile } from '@/lib/api'
+import { toast } from '@/components/ui/use-toast'
 import type { ConversionRecordDetail } from '@/types'
 
 interface MarkdownPreviewProps {
@@ -38,9 +39,13 @@ export function MarkdownPreview({ recordId, originalFilename, onClose }: Markdow
 
   const handleCopy = async () => {
     if (!detail?.markdown_content) return
-    await navigator.clipboard.writeText(detail.markdown_content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(detail.markdown_content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast({ variant: 'destructive', title: 'Failed to copy to clipboard' })
+    }
   }
 
   const handleDownload = async () => {
