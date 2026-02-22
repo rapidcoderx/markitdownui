@@ -58,17 +58,34 @@ log = logging.getLogger("markitdownui")
 log.info("Logging initialised at level %s", _LOG_LEVEL)
 
 # ---------------------------------------------------------------------------
+# Vercel serverless flag
+# ---------------------------------------------------------------------------
+
+# Set to True by vercel.json env → switches to in-memory store & /tmp paths.
+_VERCEL = bool(os.getenv("VERCEL"))
+_mem_store: list[dict] = []   # ephemeral history (used only when _VERCEL=True)
+
+# ---------------------------------------------------------------------------
 # Directories & persistence
 # ---------------------------------------------------------------------------
 
 BASE_DIR = Path(__file__).parent
-UPLOAD_DIR = BASE_DIR / "storage" / "uploads"
-OUTPUT_DIR = BASE_DIR / "storage" / "outputs"
+
+# On Vercel the filesystem is read-only except /tmp; honour optional env overrides.
+UPLOAD_DIR = Path(
+    os.getenv("UPLOAD_DIR",
+              "/tmp/markitdownui/uploads" if _VERCEL else str(BASE_DIR / "storage" / "uploads"))
+)
+OUTPUT_DIR = Path(
+    os.getenv("OUTPUT_DIR",
+              "/tmp/markitdownui/outputs" if _VERCEL else str(BASE_DIR / "storage" / "outputs"))
+)
 DB_FILE = BASE_DIR / "db.json"
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+log.info("Running in %s mode", "VERCEL serverless" if _VERCEL else "local server")
 log.debug("BASE_DIR   : %s", BASE_DIR)
 log.debug("UPLOAD_DIR : %s", UPLOAD_DIR)
 log.debug("OUTPUT_DIR : %s", OUTPUT_DIR)
@@ -113,6 +130,10 @@ def _safe_output_path(filename: str) -> Path:
 
 
 def _load_db() -> List[dict]:
+    # In-memory branch for Vercel (ephemeral per-invocation store)
+    if _VERCEL:
+        log.debug("DB (in-memory): %d record(s)", len(_mem_store))
+        return list(_mem_store)
     if not DB_FILE.exists():
         log.debug("DB file not found, returning empty list")
         return []
@@ -123,6 +144,12 @@ def _load_db() -> List[dict]:
 
 
 def _save_db(records: List[dict]) -> None:
+    # In-memory branch for Vercel
+    if _VERCEL:
+        _mem_store.clear()
+        _mem_store.extend(records)
+        log.debug("DB (in-memory) saved: %d record(s)", len(_mem_store))
+        return
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(records, f, indent=2, ensure_ascii=False)
     log.debug("DB saved: %d record(s)", len(records))
@@ -156,17 +183,22 @@ class UrlConvertRequest(BaseModel):
 app = FastAPI(title="MarkItDown UI API", version="1.0.0")
 
 _CORS_ORIGINS_DEFAULT = "http://localhost:5173,http://127.0.0.1:5173"
-_cors_origins = [
-    o.strip()
-    for o in os.getenv("CORS_ORIGINS", _CORS_ORIGINS_DEFAULT).split(",")
-    if o.strip()
-]
+# On Vercel the frontend and backend share the same origin; also allow wildcard
+# so local `vercel dev` and preview deployments work without extra configuration.
+if _VERCEL:
+    _cors_origins = ["*"]
+else:
+    _cors_origins = [
+        o.strip()
+        for o in os.getenv("CORS_ORIGINS", _CORS_ORIGINS_DEFAULT).split(",")
+        if o.strip()
+    ]
 log.info("CORS allowed origins: %s", _cors_origins)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
-    allow_credentials=True,
+    allow_credentials=not _VERCEL,  # credentials not allowed with wildcard origin
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Accept"],
 )
@@ -576,6 +608,7 @@ async def config():
         "vision_enabled": md_converter_vision is not None,
         "vision_model": _vision_model or None,
         "vision_provider": _vision_provider if md_converter_vision else None,
+        "vercel": _VERCEL,          # true → ephemeral history (no persistence)
     }
 
 

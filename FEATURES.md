@@ -39,6 +39,7 @@ Each entry lists the exact files to touch, implementation steps, and how to veri
 | Search/filter history | `ConversionHistory.tsx` — client-side filter by filename |
 | Mini stats strip | `StatsStrip.tsx` + `App.tsx` — files converted, MB processed, tokens (session) |
 | Calendar filter by date | `ConversionHistory.tsx` — calendar picker with bubbles on dates that have conversions; click a date to filter |
+| Vercel deployment | `api/index.py`, `vercel.json`, root `requirements.txt`, `_VERCEL` flag + in-memory store in `backend/main.py` |
 
 ---
 
@@ -210,7 +211,7 @@ docker compose down && docker compose up
 
 ---
 
-### 1.3 Vercel Deployment 📋
+### 1.3 Vercel Deployment ✅
 
 Frontend deployed as static; backend as a Python serverless function. History is **in-memory per invocation** — natural per-user isolation with no auth required.
 

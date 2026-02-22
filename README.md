@@ -12,6 +12,7 @@ A modern web UI and CLI tool for converting any document to **Markdown** using M
 - **One-click download** – download any `.md` output file
 - **Mini stats strip** – files converted, data processed, session token count
 - **CLI utility** – convert files from your terminal, with or without the server
+- **Vercel deployment** – one-command deploy to Vercel; frontend as static build, backend as serverless Python function
 - **Modern stack** – React 19 · Vite 6 · ShadCN UI · Tailwind CSS · FastAPI · MarkItDown 0.1+
 
 ## Supported Formats
@@ -136,13 +137,15 @@ python markitdownui.py convert --help
 
 ```
 markitdownui/
+├── api/
+│   └── index.py           # Vercel serverless entry point
 ├── backend/
 │   ├── main.py            # FastAPI app (REST API)
 │   ├── requirements.txt
 │   └── storage/
 │       ├── uploads/       # Temporary upload files (auto-deleted)
 │       └── outputs/       # Converted .md files
-│   └── db.json            # Conversion history (auto-created)
+│   └── db.json            # Conversion history (auto-created, local mode)
 │
 ├── frontend/
 │   ├── src/
@@ -164,9 +167,48 @@ markitdownui/
 │   ├── markitdownui.py    # Click-based CLI
 │   └── requirements.txt
 │
+├── api/index.py           # Vercel Python serverless entry
+├── vercel.json            # Vercel build + routing config
+├── requirements.txt       # Root requirements for Vercel builder
 ├── dev.sh                 # One-command dev startup
 └── README.md
 ```
+
+---
+
+## Vercel Deployment
+
+The frontend builds to a static site; the backend runs as a serverless Python function.
+History is **in-memory per invocation** — ephemeral by design, so each user session is isolated.
+
+### Prerequisites
+
+```bash
+npm install -g vercel
+```
+
+### Local simulation
+
+```bash
+# Simulate Vercel environment locally
+VERCEL=1 backend/.venv/bin/uvicorn main:app --app-dir backend --port 8000
+
+# Or use the Vercel CLI
+vercel dev
+```
+
+### Deploy to Vercel
+
+```bash
+# First deploy (creates project)
+vercel
+
+# Subsequent deploys to production
+vercel deploy --prod
+```
+
+> **Note:** Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in the Vercel dashboard  
+> (*Project → Settings → Environment Variables*) to enable vision conversion for images.
 
 ---
 
@@ -175,6 +217,7 @@ markitdownui/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/health` | Health check |
+| `GET` | `/api/config` | Feature flags (`vision_enabled`, `vercel`, etc.) |
 | `POST` | `/api/convert` | Convert single file |
 | `POST` | `/api/convert/bulk` | Convert multiple files |
 | `POST` | `/api/convert/url` | Convert URL to Markdown (body: `{ "url": "https://…" }`) |
