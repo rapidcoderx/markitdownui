@@ -1,3 +1,0 @@
-# Root requirements.txt – consumed by Vercel's Python builder.
-# Points to the backend's own requirements so we don't duplicate pins.
--r backend/requirements.txt
