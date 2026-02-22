@@ -23,7 +23,18 @@ export function Header() {
           </div>
           <div className="flex flex-col leading-none">
             <span className="text-sm font-bold tracking-tight">MarkItDown UI</span>
-            <span className="text-[10px] text-muted-foreground">Powered by Microsoft MarkItDown</span>
+            <span className="text-[10px] text-muted-foreground">
+              Powered by{' '}
+              <a
+                href="https://github.com/microsoft/markitdown"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2 hover:text-foreground transition-colors"
+              >
+                Microsoft MarkItDown
+              </a>
+              {' '}&middot; PDF, DOCX, PPTX, XLSX, HTML, images, audio &amp; more
+            </span>
           </div>
         </div>
 

@@ -1,10 +1,12 @@
 import { useCallback, useRef, useState } from 'react'
-import { CloudUpload, FileUp, Loader2, X, CheckCircle2, AlertCircle } from 'lucide-react'
+import { CloudUpload, FileUp, Loader2, X, CheckCircle2, AlertCircle, Link2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from '@/components/ui/use-toast'
 import { cn, formatBytes, getFileIcon } from '@/lib/utils'
-import { convertFiles } from '@/lib/api'
+import { convertFiles, convertUrl } from '@/lib/api'
 import type { ConversionRecord, UploadFile } from '@/types'
 
 const ACCEPTED_EXTENSIONS = [
@@ -25,6 +27,8 @@ export function DropZone({ onConverted }: DropZoneProps) {
   const [files, setFiles] = useState<UploadFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const [isConverting, setIsConverting] = useState(false)
+  const [urlInput, setUrlInput] = useState('')
+  const [urlConverting, setUrlConverting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const addFiles = useCallback((newFiles: File[]) => {
@@ -116,11 +120,42 @@ export function DropZone({ onConverted }: DropZoneProps) {
     }
   }
 
+  const handleConvertUrl = async () => {
+    const url = urlInput.trim()
+    if (!url) return
+    setUrlConverting(true)
+    try {
+      const record = await convertUrl(url)
+      onConverted([record])
+      setUrlInput('')
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        title: 'URL conversion failed',
+        description: (err as Error).message,
+      })
+    } finally {
+      setUrlConverting(false)
+    }
+  }
+
   const pendingCount = files.filter((f) => f.status === 'idle').length
   const doneCount = files.filter((f) => f.status === 'success' || f.status === 'error').length
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="files" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="files" className="gap-1.5">
+            <FileUp className="h-3.5 w-3.5" />
+            Files
+          </TabsTrigger>
+          <TabsTrigger value="url" className="gap-1.5">
+            <Link2 className="h-3.5 w-3.5" />
+            URL
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="files" className="mt-4 space-y-4">
       {/* Drop area */}
       <div
         className={cn(
@@ -215,6 +250,36 @@ export function DropZone({ onConverted }: DropZoneProps) {
           )}
         </div>
       )}
+        </TabsContent>
+        <TabsContent value="url" className="mt-4 space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Enter a web page URL to convert its content to Markdown.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              placeholder="https://example.com/page"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleConvertUrl()}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+            <Button
+              onClick={handleConvertUrl}
+              disabled={urlConverting || !urlInput.trim()}
+            >
+              {urlConverting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Link2 className="mr-2 h-4 w-4" />
+                  Convert
+                </>
+              )}
+            </Button>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

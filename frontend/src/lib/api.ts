@@ -42,6 +42,18 @@ export async function convertFiles(files: File[]): Promise<BulkConversionRespons
   return response
 }
 
+export async function convertUrl(url: string): Promise<ConversionRecord> {
+  log.info('convertUrl: %s', url.slice(0, 80))
+  const res = await fetch(`${BASE}/convert/url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  const record = await handleResponse<ConversionRecord>(res)
+  log.debug('convertUrl result: id=%s status=%s', record.id, record.status)
+  return record
+}
+
 // ── History ───────────────────────────────────────────────────────────────────
 
 export async function getHistory(): Promise<ConversionRecord[]> {

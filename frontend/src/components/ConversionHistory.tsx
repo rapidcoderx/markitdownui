@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Eye,
   Download,
@@ -10,6 +10,10 @@ import {
   Loader2,
   ChevronDown,
   Zap,
+  Search,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +56,13 @@ export function ConversionHistory({
   const [clearingAll, setClearingAll]     = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [showMore, setShowMore]           = useState(false)
+  const [filterQuery, setFilterQuery]      = useState('')
+  const [filterDate, setFilterDate]       = useState('') // YYYY-MM-DD or ''
+  const [calendarOpen, setCalendarOpen]   = useState(false)
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const d = new Date()
+    return new Date(d.getFullYear(), d.getMonth(), 1)
+  })
 
   const handleDelete = async (id: string, fromPopup = false) => {
     log.info('handleDelete id=%s', id)
@@ -87,11 +98,23 @@ export function ConversionHistory({
     }
   }
 
-  const visible    = records.slice(0, VISIBLE_COUNT)
-  const popupList  = records.slice(0, POPUP_COUNT)
-  const extraCount = Math.max(0, records.length - VISIBLE_COUNT)
+  const query = filterQuery.trim().toLowerCase()
+  const getRecordDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }) // YYYY-MM-DD
+  const datesWithConversions = useMemo(
+    () => new Set(records.map((r) => getRecordDate(r.created_at))),
+    [records],
+  )
+  const filteredRecords = records.filter((r) => {
+    if (query && !r.original_filename.toLowerCase().includes(query)) return false
+    if (filterDate && getRecordDate(r.created_at) !== filterDate) return false
+    return true
+  })
+  const visible    = filteredRecords.slice(0, VISIBLE_COUNT)
+  const popupList  = filteredRecords.slice(0, POPUP_COUNT)
+  const extraCount = Math.max(0, filteredRecords.length - VISIBLE_COUNT)
 
-  const historyTokens = records.reduce(
+  const historyTokens = filteredRecords.reduce(
     (acc, r) => {
       if (r.llm_tokens) {
         acc.input  += r.llm_tokens.input_tokens
@@ -116,12 +139,99 @@ export function ConversionHistory({
 
   return (
     <div className="space-y-3">
+      {/* Search + calendar */}
+      {records.length > 0 && (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Filter by filename…"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              className="w-full rounded-md border border-input bg-transparent py-2 pl-8 pr-3 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            onClick={() => setCalendarOpen(true)}
+            title="Show calendar — pick a date to see conversions from that day"
+          >
+            <Calendar className="h-4 w-4" />
+            {filterDate ? (
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                •
+              </span>
+            ) : null}
+          </Button>
+        </div>
+      )}
+
+      {/* Calendar dialog — bubbles on dates with conversions */}
+      <Dialog open={calendarOpen} onOpenChange={setCalendarOpen}>
+        <DialogContent className="max-w-[320px] p-4">
+          <DialogHeader className="space-y-3 pb-2">
+            <DialogTitle className="text-base">Filter by date</DialogTitle>
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() =>
+                  setCalendarMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+                }
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-sm font-medium">
+                {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() =>
+                  setCalendarMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))
+                }
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <CalendarGrid
+            month={calendarMonth}
+            datesWithConversions={datesWithConversions}
+            selectedDate={filterDate}
+            onSelectDate={(date) => {
+              setFilterDate((prev) => (prev === date ? '' : date))
+              setCalendarOpen(false)
+            }}
+          />
+          {filterDate && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={() => {
+                setFilterDate('')
+                setCalendarOpen(false)
+              }}
+            >
+              Clear date filter
+            </Button>
+          )}
+        </DialogContent>
+      </Dialog>
       {/* Header row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ClockIcon className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">
-            {records.length} conversion{records.length !== 1 ? 's' : ''}
+            {filteredRecords.length === records.length
+              ? `${records.length} conversion${records.length !== 1 ? 's' : ''}`
+              : `${filteredRecords.length} of ${records.length} conversion${records.length !== 1 ? 's' : ''}`}
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -143,11 +253,15 @@ export function ConversionHistory({
         </div>
       </div>
 
-      {records.length === 0 ? (
+      {filteredRecords.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed py-16 text-center">
           <ClockIcon className="h-10 w-10 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">No conversions yet</p>
-          <p className="text-xs text-muted-foreground/60">Upload a file to get started</p>
+          <p className="text-sm text-muted-foreground">
+            {query ? 'No matching conversions' : 'No conversions yet'}
+          </p>
+          <p className="text-xs text-muted-foreground/60">
+            {query ? 'Try a different filter' : 'Upload a file or paste a URL to get started'}
+          </p>
         </div>
       ) : (
         <>
@@ -182,7 +296,7 @@ export function ConversionHistory({
                 {historyTokens.total.toLocaleString()} total tokens
               </span>
               <span className="text-xs text-muted-foreground/70">
-                across {records.filter(r => r.llm_tokens).length} LLM-assisted conversion{records.filter(r => r.llm_tokens).length !== 1 ? 's' : ''}
+                across {filteredRecords.filter(r => r.llm_tokens).length} LLM-assisted conversion{filteredRecords.filter(r => r.llm_tokens).length !== 1 ? 's' : ''}
               </span>
               <span className="ml-auto text-xs text-muted-foreground/60">
                 {historyTokens.input.toLocaleString()} in&nbsp;·&nbsp;{historyTokens.output.toLocaleString()} out
@@ -216,6 +330,86 @@ export function ConversionHistory({
           </ScrollArea>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/* ── Calendar grid (bubbles on dates with conversions) ────────────────────── */
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+interface CalendarGridProps {
+  month: Date
+  datesWithConversions: Set<string>
+  selectedDate: string
+  onSelectDate: (date: string) => void
+}
+
+function CalendarGrid({
+  month,
+  datesWithConversions,
+  selectedDate,
+  onSelectDate,
+}: CalendarGridProps) {
+  const year = month.getFullYear()
+  const monthIdx = month.getMonth()
+  const firstDay = new Date(year, monthIdx, 1)
+  const lastDay = new Date(year, monthIdx + 1, 0)
+  const startWeekday = firstDay.getDay()
+  const daysInMonth = lastDay.getDate()
+
+  const cells: (number | null)[] = []
+  const leadingEmpty = startWeekday
+  for (let i = 0; i < leadingEmpty; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  const total = 42
+  while (cells.length < total) cells.push(null)
+
+  const toDateStr = (day: number) =>
+    new Date(year, monthIdx, day).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+
+  return (
+    <div className="grid grid-cols-7 gap-0.5 text-center text-sm">
+      {WEEKDAYS.map((w) => (
+        <div key={w} className="py-1 text-[10px] font-medium text-muted-foreground">
+          {w}
+        </div>
+      ))}
+      {cells.map((day, i) => {
+        if (day === null) {
+          return <div key={i} className="h-8" />
+        }
+        const dateStr = toDateStr(day)
+        const hasConversions = datesWithConversions.has(dateStr)
+        const isSelected = selectedDate === dateStr
+        return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => onSelectDate(dateStr)}
+            className={cn(
+              'relative flex h-8 w-full flex-col items-center justify-center rounded-md transition-colors',
+              'hover:bg-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+              isSelected && 'bg-primary text-primary-foreground',
+              !isSelected && 'text-foreground'
+            )}
+          >
+            <span>{day}</span>
+            {hasConversions && (
+              <span
+                className={cn(
+                  'absolute bottom-0.5 h-1 w-1 rounded-full',
+                  isSelected ? 'bg-primary-foreground' : 'bg-primary'
+                )}
+                title={`${dateStr} — conversions on this day`}
+              />
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 }

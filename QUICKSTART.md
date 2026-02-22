@@ -8,8 +8,8 @@
 | Node.js | 18+ | [nodejs.org](https://nodejs.org) |
 | npm | 9+ | bundled with Node |
 
-> **`uv` manages Python for you** — running `uv python install 3.13` downloads and pins CPython 3.13  
-> in seconds. No system Python required. `markitdown[all]` works fully on 3.13 (avoids the 3.14 incompatibility with `youtube-transcript-api`).
+> **`uv` manages Python for you** — running `uv python install 3.14` downloads and pins CPython 3.14  
+> in seconds. No system Python required.
 
 ---
 
@@ -33,9 +33,9 @@ Open **http://localhost:5173** in your browser.
 ```bash
 cd backend
 
-# Install Python 3.13 and create a virtual environment
-uv python install 3.13
-uv venv --python 3.13
+# Install Python 3.14 and create a virtual environment
+uv python install 3.14
+uv venv --python 3.14
 
 # Install dependencies
 uv pip install fastapi "uvicorn[standard]" python-multipart aiofiles pydantic python-dotenv markitdown
@@ -65,8 +65,8 @@ UI is now live at **http://localhost:5173**
 cd cli
 
 # Create a throwaway venv for the CLI
-uv python install 3.13
-uv venv --python 3.13
+uv python install 3.14
+uv venv --python 3.14
 uv pip install markitdown rich click
 
 # Convert a single file
@@ -91,6 +91,7 @@ python markitdownui.py --help
 | GET | `/api/health` | Health check |
 | POST | `/api/convert` | Convert single file |
 | POST | `/api/convert/bulk` | Convert many files |
+| POST | `/api/convert/url` | Convert URL to Markdown |
 | GET | `/api/history` | List all conversions |
 | GET | `/api/history/{id}` | Single record + full markdown |
 | GET | `/api/download/{id}` | Download `.md` file |
@@ -122,14 +123,13 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 source $HOME/.local/bin/env   # or restart your shell
 ```
 
-### `youtube-transcript-api` install error (Python 3.14+)
+### MarkItDown install issues
 ```bash
-# Use Python 3.13 via uv – resolves all optional deps
-uv python install 3.13
-uv venv --python 3.13
+# Use Python 3.14 via uv
+uv python install 3.14
+uv venv --python 3.14
 uv pip install markitdown
 ```
-All document, image, and audio conversions work on 3.13.
 
 ### Port already in use
 ```bash

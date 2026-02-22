@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Header } from '@/components/Header'
 import { DropZone } from '@/components/DropZone'
 import { ConversionHistory } from '@/components/ConversionHistory'
+import { StatsStrip } from '@/components/StatsStrip'
 import { MarkdownPreview } from '@/components/MarkdownPreview'
 import { Toaster } from '@/components/ui/toaster'
 import { toast } from '@/components/ui/use-toast'
@@ -73,28 +74,8 @@ export default function App() {
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        {/* Hero */}
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            MarkItDown{' '}
-            <span className="bg-gradient-to-r from-primary/80 to-primary bg-clip-text text-transparent">
-              UI
-            </span>
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Powered by{' '}
-            <a
-              href="https://github.com/microsoft/markitdown"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-4 hover:text-foreground transition-colors"
-            >
-              Microsoft MarkItDown
-            </a>
-            {' '}&mdash; PDF, DOCX, PPTX, XLSX, HTML, images, audio &amp; more
-          </p>
-        </div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">
+        <StatsStrip records={history} />
 
         {/* Two-column layout */}
         <div className="grid gap-6 lg:grid-cols-2">

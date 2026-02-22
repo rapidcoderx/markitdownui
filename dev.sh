@@ -29,10 +29,10 @@ if ! command -v uv &>/dev/null; then
 fi
 
 if [ ! -d "$BACKEND/.venv" ]; then
-  echo "→ Installing Python 3.13 via uv…"
-  uv python install 3.13
-  echo "→ Creating virtual environment (Python 3.13)…"
-  uv venv --python 3.13 "$BACKEND/.venv"
+  echo "→ Installing Python 3.14 via uv…"
+  uv python install 3.14
+  echo "→ Creating virtual environment (Python 3.14)…"
+  uv venv --python 3.14 "$BACKEND/.venv"
 fi
 
 echo "→ Installing backend dependencies…"

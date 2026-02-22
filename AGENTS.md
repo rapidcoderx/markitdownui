@@ -36,7 +36,7 @@ markitdownui/
 │   │   ├── components/
 │   │   │   ├── Header.tsx    ← Top navigation bar
 │   │   │   ├── DropZone.tsx  ← File upload + queue + convert button
-│   │   │   ├── ConversionHistory.tsx  ← History list with view/download/delete
+│   │   │   ├── ConversionHistory.tsx  ← History list; filter by filename + calendar (bubbles on dates with conversions)
 │   │   │   ├── MarkdownPreview.tsx    ← Dialog: rendered preview + raw tabs
 │   │   │   └── ui/           ← ShadCN-style primitives (button, badge, card, dialog,
 │   │   │                         progress, scroll-area, separator, tabs, toast, toaster,
@@ -79,10 +79,9 @@ markitdownui/
 
 ## Known Constraints
 
-1. **Python version** – use **Python 3.13** via `uv`. `markitdown[all]` requires
-   `youtube-transcript-api` which does not support 3.14 yet. `uv python install 3.13` pins the
+1. **Python version** – use **Python 3.14** via `uv`. `uv python install 3.14` pins the
    correct interpreter automatically.
-2. **`uv` preferred over `pip`** – always create venvs with `uv venv --python 3.13` and install
+2. **`uv` preferred over `pip`** – always create venvs with `uv venv --python 3.14` and install
    with `uv pip install`. This ensures reproducible envs and avoids system-Python conflicts.
 3. **No database** – history is stored in `backend/db.json` (flat JSON array). Sufficient for
    local use; swap with SQLite/Postgres for production.
@@ -105,15 +104,15 @@ markitdownui/
 
 ```bash
 # Run once per machine / fresh clone
-uv python install 3.13
+uv python install 3.14
 
 # Backend
-uv venv --python 3.13 backend/.venv
+uv venv --python 3.14 backend/.venv
 uv pip install --python backend/.venv fastapi "uvicorn[standard]" \
-  python-multipart aiofiles pydantic python-dotenv markitdown
+ python-multipart aiofiles pydantic python-dotenv markitdown
 
 # CLI (optional standalone venv)
-uv venv --python 3.13 cli/.venv
+uv venv --python 3.14 cli/.venv
 uv pip install --python cli/.venv markitdown rich click
 ```
 

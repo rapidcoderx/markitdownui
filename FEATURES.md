@@ -34,6 +34,11 @@ Each entry lists the exact files to touch, implementation steps, and how to veri
 | Queue auto-clear after conversion | `DropZone.tsx` |
 | Info dialog with author + attribution | `Header.tsx` |
 | CLI tool | `cli/markitdownui.py` |
+| URL → Markdown conversion | `POST /api/convert/url`, `DropZone.tsx` URL tab, `api.ts` |
+| Copy to clipboard (preview dialog) | `MarkdownPreview.tsx` — Copy button, 2s Check feedback |
+| Search/filter history | `ConversionHistory.tsx` — client-side filter by filename |
+| Mini stats strip | `StatsStrip.tsx` + `App.tsx` — files converted, MB processed, tokens (session) |
+| Calendar filter by date | `ConversionHistory.tsx` — calendar picker with bubbles on dates that have conversions; click a date to filter |
 
 ---
 
@@ -110,7 +115,7 @@ One `docker compose up --build` runs the full production stack. Nginx serves the
 
 | File | Purpose |
 |------|---------|
-| `backend/Dockerfile` | Python 3.13 image, uv venv, uvicorn |
+| `backend/Dockerfile` | Python 3.14 image, uv venv, uvicorn |
 | `frontend/Dockerfile` | Multi-stage: Node build → nginx:alpine serve |
 | `frontend/nginx.conf` | SPA routing + `/api/` reverse proxy |
 | `docker-compose.yml` | Orchestrates both services + named volumes |
@@ -119,11 +124,11 @@ One `docker compose up --build` runs the full production stack. Nginx serves the
 
 **`backend/Dockerfile`**
 ```dockerfile
-FROM python:3.13-slim
+FROM python:3.14-slim
 RUN pip install uv
 WORKDIR /app
 COPY requirements.txt .
-RUN uv venv .venv --python 3.13 && uv pip install --python .venv -r requirements.txt
+RUN uv venv .venv --python 3.14 && uv pip install --python .venv -r requirements.txt
 COPY . .
 ENV DB_PATH=/data/markitdownui.db \
     OUTPUT_DIR=/outputs \
@@ -237,7 +242,7 @@ from main import app  # noqa: F401  – Vercel imports 'app'
     { "source": "/api/(.*)", "destination": "/api/index.py" }
   ],
   "functions": {
-    "api/index.py": { "runtime": "python3.13", "maxDuration": 60 }
+    "api/index.py": { "runtime": "python3.14", "maxDuration": 60 }
   },
   "env": {
     "VERCEL": "1",
@@ -278,9 +283,9 @@ vercel deploy --prod
 
 ## Phase 2 — UX Quick Wins
 
-### 2.1 URL → Markdown Conversion 📋
+### 2.1 URL → Markdown Conversion ✅
 
-MarkItDown already supports `converter.convert("https://...")`. Add a URL input alongside the drop zone.
+MarkItDown supports `converter.convert("https://...")`. URL tab in DropZone; `POST /api/convert/url`.
 
 **Files**
 
@@ -305,46 +310,21 @@ async def convert_url(body: UrlConvertRequest):
 
 ---
 
-### 2.2 Copy to Clipboard 📋
+### 2.2 Copy to Clipboard ✅
 
-One-click copy in the Markdown preview dialog (both rendered and raw tabs).
-
-**Files**
-
-| File | Change |
-|------|--------|
-| `frontend/src/components/MarkdownPreview.tsx` | Add `Copy` icon button; call `navigator.clipboard.writeText(content)` |
-
-Bonus: button transitions to a `Check` icon for 2 s after copy.
+One-click copy in the Markdown preview dialog; button shows Check icon for 2 s after copy.
 
 ---
 
-### 2.3 Search/Filter History 📋
+### 2.3 Search/Filter History ✅
 
-Client-side filter on the history panel — no backend change needed.
-
-**Files**
-
-| File | Change |
-|------|--------|
-| `frontend/src/components/ConversionHistory.tsx` | Add `<input>` at top of panel; filter `records` by `original_filename.toLowerCase().includes(query)` |
+Client-side filter by filename in `ConversionHistory.tsx`; search input at top of panel.
 
 ---
 
-### 2.4 Mini Stats Strip 📋
+### 2.4 Mini Stats Strip ✅
 
-A row of stat pills between the hero and the two-column cards, computed from history on the frontend.
-
-```
-📄 42 files converted  ·  📦 128 MB processed  ·  ⚡ 18,432 tokens used (session)
-```
-
-**Files**
-
-| File | Change |
-|------|--------|
-| `frontend/src/App.tsx` | Add `<StatsStrip>` component between hero and grid |
-| `frontend/src/components/StatsStrip.tsx` | New component; props: `records`, `cumulativeTokens` |
+Stats strip between hero and grid: files converted, MB processed, tokens (session). `StatsStrip.tsx` + `App.tsx`.
 
 ---
 

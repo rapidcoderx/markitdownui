@@ -55,3 +55,25 @@
 - Created `AGENTS.md` — AI agent continuity guide
 - Created `prompt.md` — this file
 - Created `context.md` — detailed technical state snapshot
+
+### February 21, 2026 – Phase 2 UX (2.1–2.4) + docs
+
+**Actions taken:**
+- Updated all docs to **Python 3.14** (AGENTS.md, FEATURES.md, README, QUICKSTART, context.md, dev.sh)
+- **2.1 URL → Markdown:** `POST /api/convert/url`, DropZone URL tab, `convertUrl()` in api.ts
+- **2.2 Copy to clipboard:** Already shipped in MarkdownPreview.tsx; marked in FEATURES.md
+- **2.3 Search/filter history:** Client-side filter by filename in ConversionHistory.tsx
+- **2.4 Mini stats strip:** StatsStrip.tsx (files, MB processed, session tokens) between hero and grid in App.tsx
+- Updated README features and API table; FEATURES.md shipped table and Phase 2 entries
+
+---
+
+## Next Session – Vercel Deployment
+
+**Goal:** Enable Vercel deployment so the app can be deployed with `vercel deploy`.
+
+**Instructions for the next session:**
+1. Read **FEATURES.md** section **1.3 Vercel Deployment** first — it has the full spec: files to create (`api/index.py`, `vercel.json`, root `requirements.txt`), and required changes in `backend/main.py` (in-memory store when `VERCEL=1`, `/tmp` output path, `_VERCEL` flag and branches in all db helpers).
+2. Implement the Vercel deployment flow: frontend as static build, backend as Python serverless; history in-memory per invocation (ephemeral, no DB).
+3. Verify with `VERCEL=1 uvicorn …` locally and document `vercel dev` / `vercel deploy --prod` in README or QUICKSTART if needed.
+4. Do **not** implement SQLite (1.1) or Docker (1.2) in that session unless the user asks — focus only on Vercel (1.3).

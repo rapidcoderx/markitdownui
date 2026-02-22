@@ -5,10 +5,12 @@ A modern web UI and CLI tool for converting any document to **Markdown** using M
 ## Features
 
 - **Drag & drop upload** – single or bulk, with live progress
+- **URL → Markdown** – paste a web page URL to convert its content
 - **Bulk conversion** – all files converted in one API call
-- **Conversion history** – persisted locally in `db.json`
-- **Preview pane** – rendered preview and raw Markdown side-by-side
+- **Conversion history** – persisted locally in `db.json`, with search by filename and calendar filter by date (bubbles on dates that have conversions)
+- **Preview pane** – rendered preview and raw Markdown, with copy-to-clipboard
 - **One-click download** – download any `.md` output file
+- **Mini stats strip** – files converted, data processed, session token count
 - **CLI utility** – convert files from your terminal, with or without the server
 - **Modern stack** – React 19 · Vite 6 · ShadCN UI · Tailwind CSS · FastAPI · MarkItDown 0.1+
 
@@ -46,9 +48,9 @@ Open **http://localhost:5173** in your browser.
 ```bash
 cd backend
 
-# Install Python 3.13 and create virtual environment
-uv python install 3.13
-uv venv --python 3.13
+# Install Python 3.14 and create virtual environment
+uv python install 3.14
+uv venv --python 3.14
 
 # Install dependencies
 uv pip install fastapi "uvicorn[standard]" python-multipart aiofiles pydantic python-dotenv markitdown
@@ -79,8 +81,8 @@ The CLI works standalone (local conversion) or against the running server.
 
 ```bash
 cd cli
-uv python install 3.13
-uv venv --python 3.13
+uv python install 3.14
+uv venv --python 3.14
 uv pip install markitdown rich click
 ```
 
@@ -150,7 +152,8 @@ markitdownui/
 │   │   │   ├── Header.tsx
 │   │   │   ├── DropZone.tsx
 │   │   │   ├── ConversionHistory.tsx
-│   │   │   └── MarkdownPreview.tsx
+│   │   │   ├── MarkdownPreview.tsx
+│   │   │   └── StatsStrip.tsx
 │   │   ├── lib/
 │   │   │   ├── api.ts     # API client
 │   │   │   └── utils.ts
@@ -174,6 +177,7 @@ markitdownui/
 | `GET` | `/api/health` | Health check |
 | `POST` | `/api/convert` | Convert single file |
 | `POST` | `/api/convert/bulk` | Convert multiple files |
+| `POST` | `/api/convert/url` | Convert URL to Markdown (body: `{ "url": "https://…" }`) |
 | `GET` | `/api/history` | List all conversions |
 | `GET` | `/api/history/{id}` | Get record + full markdown |
 | `GET` | `/api/download/{id}` | Download `.md` file |

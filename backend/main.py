@@ -124,6 +124,10 @@ class ConversionRecord(BaseModel):
     llm_tokens: dict | None = None       # {input_tokens, output_tokens, total_tokens}
 
 
+class UrlConvertRequest(BaseModel):
+    url: str
+
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
@@ -443,6 +447,77 @@ def _convert_file(upload_path: Path, original_name: str) -> dict:
     return record
 
 
+def _convert_url(url: str) -> dict:
+    """Convert a URL to Markdown and persist the result."""
+    record_id = str(uuid.uuid4())
+    out_name = f"{record_id}.md"
+    out_path = OUTPUT_DIR / out_name
+    # Use URL as display name (truncate for long URLs)
+    original_name = url if len(url) <= 120 else url[:117] + "..."
+    file_size = 0  # unknown for URL
+
+    if not url.strip().lower().startswith(("http://", "https://")):
+        record = {
+            "id": record_id,
+            "original_filename": original_name,
+            "output_filename": out_name,
+            "file_size": file_size,
+            "status": "error",
+            "error_message": "URL must start with http:// or https://",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "markdown_preview": None,
+            "llm_tokens": None,
+        }
+        records = _load_db()
+        records.insert(0, record)
+        _save_db(records)
+        return record
+
+    log.info("[%s] Converting URL: %s", record_id[:8], url[:80])
+
+    t0 = time.monotonic()
+    try:
+        result = md_converter.convert(url)
+        markdown_content = result.text_content
+        elapsed = time.monotonic() - t0
+        file_size = len(markdown_content.encode("utf-8")) if markdown_content else 0
+
+        with open(out_path, "w", encoding="utf-8") as f:
+            f.write(markdown_content or "")
+
+        log.info("[%s] URL conversion done in %.3fs, %d chars", record_id[:8], elapsed, len(markdown_content or ""))
+
+        record = {
+            "id": record_id,
+            "original_filename": original_name,
+            "output_filename": out_name,
+            "file_size": file_size,
+            "status": "success",
+            "error_message": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "markdown_preview": (markdown_content[:500] if markdown_content else "") or "",
+            "llm_tokens": None,
+        }
+    except Exception as exc:  # noqa: BLE001
+        log.error("[%s] URL conversion FAILED: %s", record_id[:8], exc, exc_info=True)
+        record = {
+            "id": record_id,
+            "original_filename": original_name,
+            "output_filename": out_name,
+            "file_size": file_size,
+            "status": "error",
+            "error_message": str(exc),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "markdown_preview": None,
+            "llm_tokens": None,
+        }
+
+    records = _load_db()
+    records.insert(0, record)
+    _save_db(records)
+    return record
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -528,6 +603,17 @@ async def convert_bulk(files: List[UploadFile] = File(...)):
         results.append(record)
 
     return {"results": results, "total": len(results)}
+
+
+@app.post("/api/convert/url", response_model=ConversionRecord, status_code=status.HTTP_201_CREATED)
+async def convert_url(body: UrlConvertRequest):
+    """Convert a URL to Markdown (e.g. https://example.com/page)."""
+    if not (body.url and body.url.strip()):
+        raise HTTPException(status_code=400, detail="URL is required")
+    if len(body.url) > 4096:
+        raise HTTPException(status_code=400, detail="URL too long")
+    record = _convert_url(body.url.strip())
+    return record
 
 
 @app.get("/api/history", response_model=List[ConversionRecord])

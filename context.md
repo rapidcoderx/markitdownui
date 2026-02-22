@@ -143,7 +143,7 @@ markitdownui history  [options]
 ## Development Environment
 
 ### Recommended setup (February 21, 2026)
-- **Python** — managed by **`uv`**: `uv python install 3.13` then `uv venv --python 3.13`
+- **Python** — managed by **`uv`**: `uv python install 3.14` then `uv venv --python 3.14`
 - **Node** v18+ / npm 9+ — `node_modules/` installed, `vite build` passes (1926 modules, 4.93s)
 - **TypeScript** — `tsc --noEmit` passes with zero errors
 - **Backend** — FastAPI starts, `/api/health` → `{"status":"ok"}`, `/api/history` → `[]`
@@ -156,8 +156,8 @@ source $HOME/.local/bin/env   # or restart shell
 
 ### Backend venv (canonical)
 ```bash
-uv python install 3.13
-uv venv --python 3.13 backend/.venv
+uv python install 3.14
+uv venv --python 3.14 backend/.venv
 uv pip install --python backend/.venv \
   fastapi "uvicorn[standard]" python-multipart aiofiles pydantic python-dotenv markitdown
 ```
@@ -170,7 +170,7 @@ backend/.venv/bin/uvicorn main:app --app-dir backend --reload --port 8000
 ### Known issues resolved
 | Issue | Fix Applied |
 |-------|-------------|
-| `markitdown[all]` fails on Python 3.14 (youtube-transcript-api) | Use `uv python install 3.13` — 3.13 fully supported |
+| Python version | Use `uv python install 3.14` and `uv venv --python 3.14` |
 | `MarkItDown(enable_plugins=False)` TypeError | Removed arg in `main.py` and `cli/markitdownui.py` |
 | `@radix-ui/react-badge` package doesn't exist | Removed from `package.json`, Badge is self-contained |
 | `uvicorn[standard]` shell glob expansion in zsh | Quoted in `dev.sh` and `uv pip install` |
